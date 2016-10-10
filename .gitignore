@@ -1,0 +1,5 @@
+multiline-test
+bin/
+*.local.txt
+config.json
+rltop
