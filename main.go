@@ -78,22 +78,19 @@ func main() {
 	}
 	redisClientConns := getRedisClientConns(redisConf)
 
+	//fmt.Println(getRedisInfo(redisClientConns["redis-1-production-logstash.lsops.co:6379"]))
+	//os.Exit(1)
+
 	go func() {
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt)
 		<-c
-		//fmt.Println("Stopping process...")
-		//fmt.Fprintf(writer.Bypass(), "%s\n", "Stopping process...")
 		writer.Stop()
 		os.Exit(0)
 	}()
 
 	lastRedisHostStats = make(map[string]map[string]int64, len(redisConf.RedisHosts))
 	currRedisHostStats = make(map[string]map[string]int64, len(redisConf.RedisHosts))
-
-	//c := exec.Command("cls")
-	//c.Stdout = os.Stdout
-	//c.Run()
 
 	writer.Start()
 
@@ -102,11 +99,25 @@ func main() {
 	var diffSign string
 	firstItteration := true
 
-	for {
+	// Initialize the slize of redis host connections
 
-		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 133)))
-		consoleOutput.WriteString(fmt.Sprintf("|%s|%s|%s|%s|\n", center("Redis Hosts", 60), center("List", 40), center("Length", 14), center("Rate", 14)))
-		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 133)))
+	// ------------- Create a slice containing the redis hosts sorted -------------
+	sortedRedisHosts := make([]string, len(currRedisHostStats))
+	i := 0
+	for k, _ := range currRedisHostStats {
+		sortedRedisHosts[i] = k
+		i++
+	}
+	sort.Strings(sortedRedisHosts)
+
+	// -------------- Create another slice with the list of keys in sorted order for each redis host --------------
+	for _, rh := range sortedRedisHosts {
+		for list := range currRedisHostStats[rh] {
+			sortedRedisLists := make([]string, len(currRedisHostStats))
+		}
+	}
+
+	for {
 
 		for h, c := range redisClientConns {
 			// If the index of the given redis host isn't set, then set it
@@ -123,13 +134,9 @@ func main() {
 			} // End of innner for loop
 		} // End of outter for loop
 
-		sortedRedisHosts := make([]string, len(currRedisHostStats))
-		i := 0
-		for k, _ := range currRedisHostStats {
-			sortedRedisHosts[i] = k
-			i++
-		}
-		sort.Strings(sortedRedisHosts)
+		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 133)))
+		consoleOutput.WriteString(fmt.Sprintf("|%s|%s|%s|%s|\n", center("Redis Hosts", 60), center("List", 40), center("Length", 14), center("Rate", 14)))
+		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 133)))
 
 		if !firstItteration {
 
@@ -167,6 +174,7 @@ func main() {
 
 		time.Sleep(time.Second * time.Duration(*refreshRate))
 		consoleOutput.Reset()
+		//sortedRedisHosts = sortedRedisHosts[:0]
 	}
 
 }
@@ -209,6 +217,10 @@ func loadConfig(filname string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+func getRedisInfo(c *redis.Client) string {
+	return c.Info().Val()
 }
 
 func exitWithMessage(level string, msg string, showUsage bool) {
