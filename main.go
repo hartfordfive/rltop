@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	//"math"
+	"math"
 	"os"
 	//"os/exec"
 	"os/signal"
@@ -116,6 +116,7 @@ func main() {
 
 	for {
 
+		// Get the list lengths for the current itteration
 		for h, c := range redisClientConns {
 			// If the index of the given redis host isn't set, then set it
 			if _, ok := currRedisHostStats[h]; !ok {
@@ -132,16 +133,13 @@ func main() {
 		} // End of outter for loop
 
 		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 118)))
-		consoleOutput.WriteString(fmt.Sprintf("|%s|%s|%s|%s|\n", center("Redis Hosts", 45), center("List", 40), center("Length", 14), center("Diff", 14)))
+		consoleOutput.WriteString(fmt.Sprintf("|%s|%s|%s|%s|\n", center("Redis Hosts", 43), center("List", 38), center("Length", 16), center("Diff", 16)))
 		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 118)))
 
 		if !firstItteration {
 
 			for _, rh := range sortedRedisHosts {
 				for _, list := range sortedRedisLists[rh] {
-					//for rh, lists := range currRedisHostStats {
-					//for list, _ := range lists {
-
 					/*
 						1. If last reported list length is greater than this one, then it's a -DIFF (more consumed than put in)
 						2  If last reported list length is smaller than this one, then it's a +DIFF (more put in than consumed)
@@ -156,23 +154,20 @@ func main() {
 						diff = 0
 						diffSign = ""
 					}
-					consoleOutput.WriteString(fmt.Sprintf("|%s|%s|%s|%s|\n", rightAlign(rh, 45), rightAlign(list, 40), center(strconv.FormatInt(currRedisHostStats[rh][list], 10), 14), center(fmt.Sprintf("%s%d", diffSign, diff), 14)))
+					consoleOutput.WriteString(fmt.Sprintf("|%s|%s|%s|%s|\n", rightAlign(rh, 43), rightAlign(list, 40), center(strconv.FormatInt(currRedisHostStats[rh][list], 10), 16), center(fmt.Sprintf("%s%d", diffSign, diff), 16)))
 
 				}
-				consoleOutput.WriteString(fmt.Sprintf("| %s |\n", strings.Repeat("-", 116)))
+				consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 118)))
 			}
 
 		} else {
 			firstItteration = false
 		}
 
-		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 118)))
-
 		fmt.Fprintf(writer, "%s", fmt.Sprint(consoleOutput.String()))
 
 		time.Sleep(time.Second * time.Duration(*refreshRate))
 		consoleOutput.Reset()
-		//sortedRedisHosts = sortedRedisHosts[:0]
 	}
 
 }
@@ -234,28 +229,30 @@ func centerFill(s string, colWidth int, fill string) string {
 	return strings.Repeat(fill, div) + s + strings.Repeat(fill, div)
 }
 
-func center(s string, colWidth int) string {
-	div := (colWidth - len(s)) / 2
-	return strings.Repeat(" ", div) + s + strings.Repeat(" ", div)
+func center(s string, maxColWidth int) string {
+
+	if len(s) > maxColWidth {
+		return s[0:(maxColWidth-4)] + "..."
+	} else if len(s) == maxColWidth {
+		return s
+	}
+
+	padding := (maxColWidth - len(s)) / 2
+	rem := int(math.Mod(float64(maxColWidth), float64(len(s))))
+
+	return strings.Repeat(" ", padding) + s + strings.Repeat(" ", (padding+rem))
 }
 
 func leftAlign(s string, maxColWidth int) string {
 
-	if len(s) >= maxColWidth-3 {
-		return s[0:(maxColWidth-3)] + "..."
+	if len(s) >= maxColWidth-4 {
+		return s[0:(maxColWidth-4)] + "..."
 	}
 
 	return " " + s + strings.Repeat(" ", (maxColWidth-len(s)))
 }
 
 func rightAlign(s string, maxColWidth int) string {
-	/*
-		maxPadding := maxColWidth - len(s)
-		if len(s) > maxColWidth-3 {
-			return s[0:(maxColWidth-1)] + "..." + strings.Repeat(" ", maxPadding)
-		}
-		return strings.Repeat(" ", (maxColWidth-len(s))) + s
-	*/
 	if len(s) >= maxColWidth-4 {
 		return s[0:(maxColWidth-4)] + "..."
 	}
