@@ -78,9 +78,6 @@ func main() {
 	}
 	redisClientConns := getRedisClientConns(redisConf)
 
-	//fmt.Println(getRedisInfo(redisClientConns["redis-1-production-logstash.lsops.co:6379"]))
-	//os.Exit(1)
-
 	go func() {
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt)
@@ -102,19 +99,19 @@ func main() {
 	// Initialize the slize of redis host connections
 
 	// ------------- Create a slice containing the redis hosts sorted -------------
-	sortedRedisHosts := make([]string, len(currRedisHostStats))
+	sortedRedisHosts := make([]string, len(redisConf.RedisHosts))
 	i := 0
-	for k, _ := range currRedisHostStats {
+	for k, _ := range redisConf.RedisHosts {
 		sortedRedisHosts[i] = k
 		i++
 	}
 	sort.Strings(sortedRedisHosts)
 
 	// -------------- Create another slice with the list of keys in sorted order for each redis host --------------
-	for _, rh := range sortedRedisHosts {
-		for list := range currRedisHostStats[rh] {
-			sortedRedisLists := make([]string, len(currRedisHostStats))
-		}
+	sortedRedisLists := map[string][]string{}
+	for rh, lists := range redisConf.RedisHosts {
+		sort.Strings(lists)
+		sortedRedisLists[rh] = lists
 	}
 
 	for {
@@ -134,14 +131,14 @@ func main() {
 			} // End of innner for loop
 		} // End of outter for loop
 
-		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 133)))
-		consoleOutput.WriteString(fmt.Sprintf("|%s|%s|%s|%s|\n", center("Redis Hosts", 60), center("List", 40), center("Length", 14), center("Rate", 14)))
-		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 133)))
+		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 118)))
+		consoleOutput.WriteString(fmt.Sprintf("|%s|%s|%s|%s|\n", center("Redis Hosts", 45), center("List", 40), center("Length", 14), center("Diff", 14)))
+		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 118)))
 
 		if !firstItteration {
 
 			for _, rh := range sortedRedisHosts {
-				for list := range currRedisHostStats[rh] {
+				for _, list := range sortedRedisLists[rh] {
 					//for rh, lists := range currRedisHostStats {
 					//for list, _ := range lists {
 
@@ -159,16 +156,17 @@ func main() {
 						diff = 0
 						diffSign = ""
 					}
-					consoleOutput.WriteString(fmt.Sprintf("|%s|%s|%s|%s|\n", rightAlign(rh, 60), rightAlign(list, 40), center(strconv.FormatInt(currRedisHostStats[rh][list], 10), 14), center(fmt.Sprintf("%s%d", diffSign, diff), 14)))
+					consoleOutput.WriteString(fmt.Sprintf("|%s|%s|%s|%s|\n", rightAlign(rh, 45), rightAlign(list, 40), center(strconv.FormatInt(currRedisHostStats[rh][list], 10), 14), center(fmt.Sprintf("%s%d", diffSign, diff), 14)))
 
 				}
+				consoleOutput.WriteString(fmt.Sprintf("| %s |\n", strings.Repeat("-", 116)))
 			}
 
 		} else {
 			firstItteration = false
 		}
 
-		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 133)))
+		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 118)))
 
 		fmt.Fprintf(writer, "%s", fmt.Sprint(consoleOutput.String()))
 
@@ -251,9 +249,16 @@ func leftAlign(s string, maxColWidth int) string {
 }
 
 func rightAlign(s string, maxColWidth int) string {
-	maxPadding := maxColWidth - len(s)
-	if len(s) > maxColWidth-3 {
-		return s[0:(maxColWidth-1)] + "..." + strings.Repeat(" ", maxPadding)
+	/*
+		maxPadding := maxColWidth - len(s)
+		if len(s) > maxColWidth-3 {
+			return s[0:(maxColWidth-1)] + "..." + strings.Repeat(" ", maxPadding)
+		}
+		return strings.Repeat(" ", (maxColWidth-len(s))) + s
+	*/
+	if len(s) >= maxColWidth-4 {
+		return s[0:(maxColWidth-4)] + "..."
 	}
-	return strings.Repeat(" ", (maxColWidth-len(s))) + s
+
+	return strings.Repeat(" ", (maxColWidth-len(s))) + s + " "
 }
