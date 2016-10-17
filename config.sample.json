@@ -1,0 +1,9 @@
+{
+  "redis_hosts": 
+    {
+      "localhost:6379": [
+        "test-list",
+        "another-test-list"
+      ]
+    }
+}
