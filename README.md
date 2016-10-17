@@ -5,11 +5,11 @@
 
 A simple appliciation developed to monitor the backlog of items in one or many Redis lists on one or many redis hosts.  This mostly useful for monitoring Redis in the context of using it as a buffer for Logstash.
 
+Please note this project is still considered in beta, therefore the code isn't necessarily optimal and some bugs may be present.
 
 ## Building
 
 Run `make build`
-
 
 ## Configuration format:
 
