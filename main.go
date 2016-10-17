@@ -1,24 +1,22 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
-	"math"
-	"os"
-	//"os/exec"
-	"os/signal"
-	//"sort"
-	"bytes"
-	"errors"
 	"io/ioutil"
+	"log"
+	"os"
+	"os/signal"
+	"runtime/pprof"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gosuri/uilive"
-	//"github.com/paulbellamy/ratecounter"
 	"gopkg.in/redis.v4"
 )
 
@@ -33,6 +31,7 @@ var (
 	valCurrTotal      int64
 	maxColWidth       int
 	maxColWidthMedium int
+	debug             bool
 
 	buildDate          string
 	version            string
@@ -46,6 +45,7 @@ func main() {
 	v := flag.Bool("v", false, "prints current version and exits")
 	refreshRate := flag.Int("r", 2, "Referesh rate (seconds)")
 	conf := flag.String("c", "", "Config containing the redis hosts along with the lists to monitor")
+	debug := flag.Bool("d", false, "Enable debug mode (write cpu profile to file)")
 	flag.Parse()
 
 	if *v {
@@ -53,24 +53,23 @@ func main() {
 		os.Exit(0)
 	}
 
+	if *debug {
+		f, err := os.Create("rltop.cpuprofile")
+		if err != nil {
+			log.Fatal("Could not create CPU profile: ", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("Could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
 	valLastTotal = 0
 	valCurrTotal = 0
 	maxColWidth = 38
 	maxColWidthMedium = 26
 
-	// Record number of events added/removed per list per: 10s, 1m, 5m
-
-	/*
-		rateCounterLast10Seconds := ratecounter.NewRateCounter(10 * time.Second)
-		rateCounterLastMinute := ratecounter.NewRateCounter(1 * time.Minute)
-		rateCounterLast5Minutes := ratecounter.NewRateCounter(5 * time.Minute)
-	*/
-
-	//counter.Rate() / 60
-
 	writer := uilive.New()
-
-	//ticker := time.Tick(time.Second)
 
 	redisConf, err := loadConfig(*conf)
 	if err != nil {
@@ -83,6 +82,9 @@ func main() {
 		signal.Notify(c, os.Interrupt)
 		<-c
 		writer.Stop()
+		if *debug {
+			pprof.StopCPUProfile()
+		}
 		os.Exit(0)
 	}()
 
@@ -132,9 +134,9 @@ func main() {
 			} // End of innner for loop
 		} // End of outter for loop
 
-		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 118)))
-		consoleOutput.WriteString(fmt.Sprintf("|%s|%s|%s|%s|\n", center("Redis Hosts", 43), center("List", 38), center("Length", 16), center("Diff", 16)))
-		consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 118)))
+		consoleOutput.WriteString(fmt.Sprintf("|%124s|\n", strings.Repeat("-", 123)))
+		consoleOutput.WriteString(fmt.Sprintf("|%-50s|%31s|%22s|%18s|\n", " Redis Host ", " List ", " Length ", " Diff "))
+		consoleOutput.WriteString(fmt.Sprintf("|%124s|\n", strings.Repeat("-", 123)))
 
 		if !firstItteration {
 
@@ -154,10 +156,11 @@ func main() {
 						diff = 0
 						diffSign = ""
 					}
-					consoleOutput.WriteString(fmt.Sprintf("|%s|%s|%s|%s|\n", rightAlign(rh, 43), rightAlign(list, 40), center(strconv.FormatInt(currRedisHostStats[rh][list], 10), 16), center(fmt.Sprintf("%s%d", diffSign, diff), 16)))
+
+					consoleOutput.WriteString(fmt.Sprintf("|%-50s|%31s|%22s|%18s|\n", " "+rh, list, strconv.FormatInt(currRedisHostStats[rh][list], 10), fmt.Sprintf("%s%d", diffSign, diff)))
 
 				}
-				consoleOutput.WriteString(fmt.Sprintf("|%s|\n", strings.Repeat("-", 118)))
+				consoleOutput.WriteString(fmt.Sprintf("|%124s|\n", strings.Repeat("-", 123)))
 			}
 
 		} else {
@@ -165,6 +168,19 @@ func main() {
 		}
 
 		fmt.Fprintf(writer, "%s", fmt.Sprint(consoleOutput.String()))
+
+		/* Now set the last redis list length values */
+		for h, lists := range currRedisHostStats {
+			if _, ok := lastRedisHostStats[h]; !ok {
+				lastRedisHostStats[h] = make(map[string]int64, len(redisConf.RedisHosts[h]))
+			}
+			for list := range lists {
+				if _, ok := lastRedisHostStats[h][list]; !ok {
+					lastRedisHostStats[h][list] = 0
+				}
+				lastRedisHostStats[h][list] = currRedisHostStats[h][list]
+			}
+		}
 
 		time.Sleep(time.Second * time.Duration(*refreshRate))
 		consoleOutput.Reset()
@@ -227,35 +243,4 @@ func exitWithMessage(level string, msg string, showUsage bool) {
 func centerFill(s string, colWidth int, fill string) string {
 	div := (colWidth - len(s)) / 2
 	return strings.Repeat(fill, div) + s + strings.Repeat(fill, div)
-}
-
-func center(s string, maxColWidth int) string {
-
-	if len(s) > maxColWidth {
-		return s[0:(maxColWidth-4)] + "..."
-	} else if len(s) == maxColWidth {
-		return s
-	}
-
-	padding := (maxColWidth - len(s)) / 2
-	rem := int(math.Mod(float64(maxColWidth), float64(len(s))))
-
-	return strings.Repeat(" ", padding) + s + strings.Repeat(" ", (padding+rem))
-}
-
-func leftAlign(s string, maxColWidth int) string {
-
-	if len(s) >= maxColWidth-4 {
-		return s[0:(maxColWidth-4)] + "..."
-	}
-
-	return " " + s + strings.Repeat(" ", (maxColWidth-len(s)))
-}
-
-func rightAlign(s string, maxColWidth int) string {
-	if len(s) >= maxColWidth-4 {
-		return s[0:(maxColWidth-4)] + "..."
-	}
-
-	return strings.Repeat(" ", (maxColWidth-len(s))) + s + " "
 }

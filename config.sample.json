@@ -1,8 +1,9 @@
 {
   "redis_hosts": 
     {
-      "redis-1.example.com:6379": ["list1", "list2", "list3"],
-      "redis-1.example.com:6379": ["list1", "list2", "list3"],
-      "redis-1.example.com:6379": ["list1", "list2", "list3"]
+      "localhost:6379": [
+        "test-list",
+        "another-test-list"
+      ]
     }
 }
